@@ -1,0 +1,9 @@
+[submodule "third_party/cpp-httlib"]
+	path = third_party/cpp-httlib
+	url = https://github.com/yhirose/cpp-httplib
+[submodule "third_party/libbcrypt"]
+	path = third_party/libbcrypt
+	url = https://github.com/trusch/libbcrypt
+[submodule "third_party/jwt-cpp"]
+	path = third_party/jwt-cpp
+	url = https://github.com/Thalhammer/jwt-cpp

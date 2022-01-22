@@ -1,5 +1,5 @@
-[submodule "third_party/cpp-httlib"]
-	path = third_party/cpp-httlib
+[submodule "third_party/cpp-httplib"]
+	path = third_party/cpp-httplib
 	url = https://github.com/yhirose/cpp-httplib
 [submodule "third_party/libbcrypt"]
 	path = third_party/libbcrypt

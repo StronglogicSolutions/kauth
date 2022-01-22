@@ -18,6 +18,13 @@ std::string ReadFile(const std::string& path)
   return ss.str();
 }
 
+void SaveToken(const std::string& token, const std::string& name)
+{
+  const std::string path{"tokens/" + name};
+  std::ofstream     out{path.c_str(), (std::ios::trunc | std::ios::out | std::ios::binary)};
+  out << token;
+}
+
 void ReadKeys(const std::string& private_path, const std::string& public_path)
 {
   pr_key = "";
@@ -49,6 +56,7 @@ std::string DoLogin(const std::string& username, const std::string& password)
   std::cout << BCrypt::validatePassword(password, hash) << std::endl;
   std::cout << "Hashed password is: " << hash << std::endl;
 
+  SaveToken(token, username);
   return token;
 }
 

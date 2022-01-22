@@ -5,6 +5,7 @@
 #include <httplib.h>
 #include <sstream>
 #include <fstream>
+#include <kdb.hpp>
 
 std::string pr_key;
 std::string pb_key;
@@ -69,6 +70,7 @@ int main(int argc, char* argv[])
   pb_key = ReadFile(argv[2]);
 
   httplib::Server svr;
+  Database::KDB   kdb;
 
   svr.Get("/", [&GetJSON](const httplib::Request& req, httplib::Response& res)
   {

@@ -7,3 +7,6 @@
 [submodule "third_party/jwt-cpp"]
 	path = third_party/jwt-cpp
 	url = https://github.com/Thalhammer/jwt-cpp
+[submodule "third_party/kdb"]
+	path = third_party/kdb
+	url = https://github.com/StronglogicSolutions/kdb

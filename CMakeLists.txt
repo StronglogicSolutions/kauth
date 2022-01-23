@@ -10,6 +10,9 @@ include_directories(src third_party/jwt-cpp/include third_party/cpp-httplib thir
 
 set(SOURCE_FILES
   src/main.cpp
+  src/db.cpp
+  src/util.cpp
+  src/server.cpp
 )
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 

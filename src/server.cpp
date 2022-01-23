@@ -46,7 +46,6 @@ std::string Server::DoLogin(const std::string& username, const std::string& pass
     return "";
 
   const auto hash = BCrypt::generateHash(password);
-  BCrypt::validatePassword(password, hash);
 
   if (!UserExists(username)) AddUser(username, hash);
 

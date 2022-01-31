@@ -6,6 +6,9 @@
 
 static void PrintClaims(const jwt::decoded_jwt<jwt::traits::kazuho_picojson>& decoded)
 {
+  auto claim = decoded.get_payload_claim("user");
+  auto user = claim.as_string();
+  std::cout << "User: " << user << std::endl;
   for (auto&& e : decoded.get_payload_claims())
     std::cout << e.first << " = " << e.second.to_json() << std::endl;
 }
@@ -13,19 +16,21 @@ static void PrintClaims(const jwt::decoded_jwt<jwt::traits::kazuho_picojson>& de
 Server::Server(int argc, char** argv)
 : m_db(GetDatabase())
 {
-  if (argc < 3) throw std::invalid_argument{"Please path to public and private keys"};
+  if (argc < 3) throw std::invalid_argument{"Please provide path to private and public keys"};
 
   m_pr_key = ReadFile(argv[1]);
   m_pb_key = ReadFile(argv[2]);
 
   Init();
 
-  m_server.listen("0.0.0.0", 8080);
+  m_server.listen("0.0.0.0", 9999);
 }
 
 void Server::Init()
 {
-  auto GetJSON = [](const auto& token) { return "{\"token\":\"" + token + "\"}"; };
+  static const char* error_json = "{\"error\":\"Login failed\"}";
+  auto GetJSON = [](const auto& token) { return(token.size()) ? "{\"token\":\"" + token + "\"}" :
+                                                                  error_json;                     };
 
   m_server.Get("/", [this, &GetJSON](const httplib::Request& req, httplib::Response& res)
   {
@@ -36,18 +41,35 @@ void Server::Init()
     if (req.has_param("password"))
       pass = req.get_param_value("password");
 
-    res.set_content(GetJSON(DoLogin(name, pass)), "application/json");
+    res.set_content(GetJSON(Login(name, pass)), "application/json");
+  });
+
+  m_server.Get("/register", [this, &GetJSON](const httplib::Request& req, httplib::Response& res)
+  {
+    std::string name, pass;
+
+    if (req.has_param("name"))
+      name = req.get_param_value("name");
+    if (req.has_param("password"))
+      pass = req.get_param_value("password");
+
+    if (Register(name, pass))
+      res.set_content("Created", "text/html");
+    else
+      res.set_content("Failed", "text/html");
   });
 }
 
-std::string Server::DoLogin(const std::string& username, const std::string& password)
+bool Server::Register(const std::string& username, const std::string& password)
 {
-  if (username.empty() || password.empty())
-    return "";
+  if (username.empty() || password.empty() || UserExists(username)) return false;
+  AddUser(username, BCrypt::generateHash(password));
+  return true;
+}
 
+std::string Server::Login(const std::string& username, const std::string& password)
+{
   const auto hash = BCrypt::generateHash(password);
-
-  if (!UserExists(username)) AddUser(username, hash);
 
   if (!BCrypt::validatePassword(password, hash))
     return "";
@@ -55,7 +77,7 @@ std::string Server::DoLogin(const std::string& username, const std::string& pass
   auto token = jwt::create()
     .set_issuer       ("kiq")
     .set_type         ("JWT")
-    .set_id           ("kiq_auth_example")
+    .set_id           ("kiq_auth")
     .set_issued_at    (std::chrono::system_clock::now())
     .set_expires_at   (std::chrono::system_clock::now() + std::chrono::seconds(86400))
     .set_payload_claim("user", jwt::claim(std::string{username}))

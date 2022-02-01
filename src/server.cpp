@@ -5,7 +5,7 @@
 #include <bcrypt/BCrypt.hpp>
 #include <httplib.h>
 
-static const char* REGISTER_KEY    {"dGhpc2lzbXlwYXNzd29yZAo="};
+static const char* REGISTER_KEY    {""};
 static const char* HTML_MARKUP     {"text/html"};
 static const char* APPLICATION_JSON{"application/json"};
 
@@ -60,11 +60,8 @@ void Server::Init()
 
 bool Server::Register(const std::string& username, const std::string& password, const std::string& key)
 {
-  auto user_exists = UserExists(username);
-  if (username.empty() || password.empty() || key.empty() || !user_exists || key != REGISTER_KEY) return false;
-  auto hash = BCrypt::generateHash(password);
-  std::cout << hash << std::endl;
-  AddUser(username, hash);
+  if (username.empty() || password.empty() || key.empty() || UserExists(username) || key != REGISTER_KEY) return false;
+  AddUser(username, BCrypt::generateHash(password));
   return true;
 }
 
@@ -104,7 +101,20 @@ std::string Server::Login(const std::string& username, const std::string& passwo
 
 bool Server::UserExists(const std::string& name)
 {
-  return m_db.select("users", {"id"}, CreateFilter("name", name)).size();
+  try
+  {
+    QueryValues values = m_db.select("users", {"id"}, CreateFilter("name", name));
+    for (auto value : values)
+    {
+      std::cout << value.first << " : " << value.second << std::endl;
+    }
+    return values.size();
+  }
+  catch(const std::exception& e)
+  {
+    std::cerr << e.what() << '\n';
+  }
+   return false;
 }
 
 void Server::AddUser(const std::string& name, const std::string& password)

@@ -1,6 +1,6 @@
 #include "db.hpp"
 
-DatabaseConfiguration GetConfig()
+static DatabaseConfiguration GetConfig()
 {
   return {
     DatabaseCredentials{

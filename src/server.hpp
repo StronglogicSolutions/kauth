@@ -11,7 +11,7 @@ public:
 Server(int argc, char** argv);
 
 private:
-bool        Register(const std::string& username, const std::string& password);
+bool        Register(const std::string& username, const std::string& password, const std::string& key);
 std::string Login(const std::string& username, const std::string& password);
 void        Init();
 bool        UserExists(const std::string& name);

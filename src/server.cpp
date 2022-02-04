@@ -4,8 +4,9 @@
 #include <nlohmann/json.hpp>
 #include <bcrypt/BCrypt.hpp>
 #include <httplib.h>
+#include <string_view>
 
-static const char* REGISTER_KEY    {""};
+static const char* REGISTER_KEY    {"blah"};
 static const char* HTML_MARKUP     {"text/html"};
 static const char* APPLICATION_JSON{"application/json"};
 
@@ -14,6 +15,38 @@ static void PrintClaims(const jwt::decoded_jwt<jwt::traits::kazuho_picojson>& de
   auto claim = decoded.get_payload_claim("user");
   auto user  = claim.as_string();               std::cout << "User: " << user  <<                       std::endl;
   for (auto&& e : decoded.get_payload_claims()) std::cout << e.first  << " = " << e.second.to_json() << std::endl;
+}
+
+static bool VerifyToken(const jwt::traits::kazuho_picojson::string_type& token, const std::string& priv_key, const std::string& pub_key)
+{
+  try
+  {
+    auto verify  = jwt::verify()
+                    .allow_algorithm(jwt::algorithm::es256k(pub_key, priv_key, "", ""))
+                    .with_issuer    ("kiq");
+    auto decoded = jwt::decode(token);
+    verify.verify(decoded);
+    PrintClaims  (decoded);
+    return true;
+  }
+  catch(const std::exception& e)
+  {
+    log("Exception thrown while verifying token: ", e.what());
+  }
+  return false;
+}
+
+static jwt::traits::kazuho_picojson::string_type
+CreateToken(const std::string_view& username, const std::string& priv_key, const std::string& pub_key)
+{
+  return jwt::create()
+              .set_issuer       ("kiq")
+              .set_type         ("JWT")
+              .set_id           ("kiq_auth")
+              .set_issued_at    (std::chrono::system_clock::now())
+              .set_expires_at   (std::chrono::system_clock::now() + std::chrono::seconds(86400))
+              .set_payload_claim("user", jwt::claim(std::string{username}))
+              .sign             (jwt::algorithm::es256k(pub_key, priv_key, "", ""));
 }
 
 Server::Server(int argc, char** argv)
@@ -31,12 +64,11 @@ Server::Server(int argc, char** argv)
 
 void Server::Init()
 {
-  using JSON    = nlohmann::json;
-  static const std::string error_json = JSON{{"error", "Login failed"}}.dump();
+  using JSON = nlohmann::json;
   auto GetJSON = [](const std::string& token)
-  { return(token.size()) ? JSON{"token", token}.dump() : error_json; };
+  { return(token.size()) ? JSON{{"token", token}}.dump() : JSON{{"error", "Login failed"}}.dump(); };
 
-  m_server.Get("/", [this, &GetJSON](const httplib::Request& req, httplib::Response& res)
+  m_server.Get("/login", [this, &GetJSON](const httplib::Request& req, httplib::Response& res)
   {
     std::string name, pass;
 
@@ -60,43 +92,43 @@ void Server::Init()
 
 bool Server::Register(const std::string& username, const std::string& password, const std::string& key)
 {
-  if (username.empty() || password.empty() || key.empty() || UserExists(username) || key != REGISTER_KEY) return false;
+  bool user_exists = UserExists(username);
+  if (user_exists)
+    log("User exists");
+
+  if (username.empty() || password.empty() || key.empty() || user_exists || key != REGISTER_KEY) return false;
   AddUser(username, BCrypt::generateHash(password));
+  log("Registration successful");
   return true;
 }
 
 std::string Server::Login(const std::string& username, const std::string& password)
 {
+  log("Login attempt by ", username.c_str(), " with pass ", password.c_str());
+
   try
   {
     if (username.size() && password.size() &&
         BCrypt::validatePassword(password, BCrypt::generateHash(password)))
     {
-      auto token   = jwt::create()
-        .set_issuer       ("kiq")
-        .set_type         ("JWT")
-        .set_id           ("kiq_auth")
-        .set_issued_at    (std::chrono::system_clock::now())
-        .set_expires_at   (std::chrono::system_clock::now() + std::chrono::seconds(86400))
-        .set_payload_claim("user", jwt::claim(std::string{username}))
-        .sign             (jwt::algorithm::es256k(m_pb_key, m_pr_key, "", ""));
+      log("Login validated");
 
-      auto verify  = jwt::verify()
-        .allow_algorithm(jwt::algorithm::es256k(m_pb_key, m_pr_key, "", ""))
-        .with_issuer    ("kiq");
-      auto decoded = jwt::decode(token);
-      verify.verify(decoded);
-      PrintClaims  (decoded);
-      SaveToken(token, username);
-      return token;
+      auto token = CreateToken(username, m_pr_key, m_pb_key);
+
+      if (VerifyToken(token, m_pr_key, m_pb_key))
+      {
+        SaveToken(token, username);
+        log("Returning token");
+        return token;
+      }
     }
   }
   catch(const std::exception& e)
   {
-    std::cerr << e.what() << std::endl;
+    log("Exception thrown during login: ", e.what());
   }
 
-  return nlohmann::json{"error", "Login failed."}.dump();
+  return nlohmann::json{{"error", "Login failed."}}.dump();
 }
 
 bool Server::UserExists(const std::string& name)
@@ -105,10 +137,8 @@ bool Server::UserExists(const std::string& name)
   {
     QueryValues values = m_db.select("users", {"id"}, CreateFilter("name", name));
     for (auto value : values)
-    {
       std::cout << value.first << " : " << value.second << std::endl;
-    }
-    return values.size();
+    return !(values.empty());
   }
   catch(const std::exception& e)
   {

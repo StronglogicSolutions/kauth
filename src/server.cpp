@@ -10,6 +10,9 @@ static const char* REGISTER_KEY    {"blah"};
 static const char* HTML_MARKUP     {"text/html"};
 static const char* APPLICATION_JSON{"application/json"};
 
+using n_json = nlohmann::json;
+auto JSON    = [](const auto& key, const auto& val) { return n_json{{key, val}}.dump(); };
+
 static void PrintClaims(const jwt::decoded_jwt<jwt::traits::kazuho_picojson>& decoded)
 {
   auto claim = decoded.get_payload_claim("user");
@@ -64,9 +67,7 @@ Server::Server(int argc, char** argv)
 
 void Server::Init()
 {
-  using JSON = nlohmann::json;
-  auto GetJSON = [](const std::string& token)
-  { return(token.size()) ? JSON{{"token", token}}.dump() : JSON{{"error", "Login failed"}}.dump(); };
+  auto GetJSON = [](const auto& t) { return(token.size()) ? JSON("token", t) : JSON("error", "Login failed"); };
 
   m_server.Get("/login", [this, &GetJSON](const httplib::Request& req, httplib::Response& res)
   {
@@ -128,23 +129,12 @@ std::string Server::Login(const std::string& username, const std::string& passwo
     log("Exception thrown during login: ", e.what());
   }
 
-  return nlohmann::json{{"error", "Login failed."}}.dump();
+  return "";
 }
 
 bool Server::UserExists(const std::string& name)
 {
-  try
-  {
-    QueryValues values = m_db.select("users", {"id"}, CreateFilter("name", name));
-    for (auto value : values)
-      std::cout << value.first << " : " << value.second << std::endl;
-    return !(values.empty());
-  }
-  catch(const std::exception& e)
-  {
-    std::cerr << e.what() << '\n';
-  }
-   return false;
+  return (m_db.select("users", {"id"}, CreateFilter("name", name)).size() > 0);
 }
 
 void Server::AddUser(const std::string& name, const std::string& password)

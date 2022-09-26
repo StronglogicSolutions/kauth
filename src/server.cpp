@@ -39,15 +39,22 @@ static bool VerifyToken(const jwt::traits::kazuho_picojson::string_type& token, 
   return false;
 }
 
+std::chrono::seconds get_expiry(bool refresh = false)
+{
+  return (refresh) ? std::chrono::seconds(2592000) : std::chrono::seconds(86400);
+}
 static jwt::traits::kazuho_picojson::string_type
-CreateToken(const std::string_view& username, const std::string& priv_key, const std::string& pub_key)
+CreateToken(const std::string_view& username,
+            const std::string& priv_key,
+            const std::string& pub_key,
+            bool               refresh = false)
 {
   return jwt::create()
               .set_issuer       ("kiq")
               .set_type         ("JWT")
               .set_id           ("kiq_auth")
               .set_issued_at    (std::chrono::system_clock::now())
-              .set_expires_at   (std::chrono::system_clock::now() + std::chrono::seconds(86400))
+              .set_expires_at   (std::chrono::system_clock::now() + get_expiry(refresh))
               .set_payload_claim("user", jwt::claim(std::string{username}))
               .sign             (jwt::algorithm::es256k(pub_key, priv_key, "", ""));
 }
@@ -67,7 +74,7 @@ Server::Server(int argc, char** argv)
 
 void Server::Init()
 {
-  auto GetJSON = [](const auto& t) { return(token.size()) ? JSON("token", t) : JSON("error", "Login failed"); };
+  auto GetJSON = [](const auto& t) { return(t.size()) ? JSON("token", t) : JSON("error", "Login failed"); };
 
   m_server.Get("/login", [this, &GetJSON](const httplib::Request& req, httplib::Response& res)
   {
@@ -76,7 +83,7 @@ void Server::Init()
     if (req.has_param("name"))     name = req.get_param_value("name");
     if (req.has_param("password")) pass = req.get_param_value("password");
 
-    res.set_content(GetJSON(Login(name, pass)), APPLICATION_JSON);
+    res.set_content(Login(name, pass), APPLICATION_JSON);
   });
 
   m_server.Get("/register", [this, &GetJSON](const httplib::Request& req, httplib::Response& res)
@@ -105,6 +112,11 @@ bool Server::Register(const std::string& username, const std::string& password, 
 
 std::string Server::Login(const std::string& username, const std::string& password)
 {
+  auto GetJSON = [](const auto& t, const auto& r)
+  {
+    return(t.size() && r.size()) ?
+      nlohmann::json{{"token", t}, {"refresh", r}}.dump() :
+      JSON("error", "Login failed"); };
   log("Login attempt by ", username.c_str(), " with pass ", password.c_str());
 
   try
@@ -113,14 +125,16 @@ std::string Server::Login(const std::string& username, const std::string& passwo
         BCrypt::validatePassword(password, BCrypt::generateHash(password)))
     {
       log("Login validated");
+      static const bool is_refresh = true;
+      auto token   = CreateToken(username, m_pr_key, m_pb_key);
+      auto refresh = CreateToken(username, m_pr_key, m_pb_key, is_refresh);
 
-      auto token = CreateToken(username, m_pr_key, m_pb_key);
-
-      if (VerifyToken(token, m_pr_key, m_pb_key))
+      if (VerifyToken(token,   m_pr_key, m_pb_key) &&
+          VerifyToken(refresh, m_pr_key, m_pb_key))
       {
-        SaveToken(token, username);
-        log("Returning token");
-        return token;
+        SaveTokens(token, refresh, username);
+        log("Returning tokens");
+        return GetJSON(token, refresh);
       }
     }
   }

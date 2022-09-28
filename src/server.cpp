@@ -20,6 +20,39 @@ static void PrintClaims(const jwt::decoded_jwt<jwt::traits::kazuho_picojson>& de
   for (auto&& e : decoded.get_payload_claims()) std::cout << e.first  << " = " << e.second.to_json() << std::endl;
 }
 
+bool ValidateToken(std::string token, std::string name, std::string priv, std::string pub)
+{
+  auto Expired        = [](const jwt::date&   date) { return std::chrono::system_clock::now() > date;          };
+
+  using Verifier = jwt::verifier<jwt::default_clock, jwt::traits::kazuho_picojson>;
+  static const Verifier    verifier    = jwt::verify()
+    .allow_algorithm(jwt::algorithm::es256k(pub, priv, "", ""))
+    .with_issuer    ("kiq");
+
+  try
+  {
+    const auto decoded = jwt::decode(token);
+    verifier.verify(decoded);
+
+    if (decoded.get_payload_claim("user").as_string() != name)
+
+      log("Token does not belong to user");
+    else
+    if (Expired(decoded.get_expires_at()))
+      log("Token has expired");
+    else
+    {
+      log("Token valid for {}", name.c_str());
+      return true;
+    }
+  }
+  catch(const std::exception& e)
+  {
+    log("Exception thrown while validating token: {}", e.what());
+  }
+  return false;
+}
+
 static bool VerifyToken(const jwt::traits::kazuho_picojson::string_type& token, const std::string& priv_key, const std::string& pub_key)
 {
   try
@@ -43,6 +76,7 @@ std::chrono::seconds get_expiry(bool refresh = false)
 {
   return (refresh) ? std::chrono::seconds(2592000) : std::chrono::seconds(86400);
 }
+
 static jwt::traits::kazuho_picojson::string_type
 CreateToken(const std::string_view& username,
             const std::string& priv_key,
@@ -95,6 +129,20 @@ void Server::Init()
     if (req.has_param("key"))      key  = req.get_param_value("key");
 
     res.set_content((Register(name, pass, key)) ? "Created" : "Failed", HTML_MARKUP);
+  });
+
+  m_server.Get("/refresh", [this, &GetJSON](const httplib::Request& req, httplib::Response& res)
+  {
+    using json = nlohmann::json;
+    std::string content;
+    if (req.has_param("refresh") && req.has_param("name"))
+      if (const auto token = req.get_param_value("refresh"); ValidateToken(token, req.get_param_value("name"), m_pr_key, m_pb_key))
+        content = json{{"token", CreateToken(req.get_param_value("name"), m_pr_key, m_pb_key)}}.dump();
+
+    if (content.empty())
+      content = json{{"error", "refresh failed"}}.dump();
+
+    res.set_content(content, APPLICATION_JSON);
   });
 }
 

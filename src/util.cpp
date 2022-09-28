@@ -9,9 +9,13 @@ std::string ReadFile(const std::string& path)
   return ss.str();
 }
 
-void SaveToken(const std::string& token, const std::string& name)
+void SaveTokens(const std::string& token, const std::string& refresh, const std::string& name)
 {
-  const std::string path{"tokens/" + name};
-  std::ofstream     out{path.c_str(), (std::ios::trunc | std::ios::out | std::ios::binary)};
+  const std::string path   {"tokens/" + name};
+  const std::string rf_path{path + "_refresh"};
+  std::ofstream     out{path, (std::ios::trunc | std::ios::out | std::ios::binary)};
   out << token;
+  out.close();
+  out = std::ofstream{rf_path, (std::ios::trunc | std::ios::out | std::ios::binary)};
+  out << refresh;
 }

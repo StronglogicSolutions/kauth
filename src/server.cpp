@@ -135,12 +135,19 @@ void Server::Init()
   {
     using json = nlohmann::json;
     std::string content;
-    if (req.has_param("refresh") && req.has_param("name"))
-      if (const auto token = req.get_param_value("refresh"); ValidateToken(token, req.get_param_value("name"), m_pr_key, m_pb_key))
-        content = json{{"token", CreateToken(req.get_param_value("name"), m_pr_key, m_pb_key)}}.dump();
-
-    if (content.empty())
-      content = json{{"error", "refresh failed"}}.dump();
+    if (req.has_param("refresh") || req.has_param("name"))
+    {
+      const auto refresh = req.get_param_value("refresh");
+      const auto name    = req.get_param_value("name");
+      if (ValidateToken(refresh, name, m_pr_key, m_pb_key))
+      {
+        const auto token = CreateToken(req.get_param_value("name"), m_pr_key, m_pb_key);
+        SaveTokens(token, refresh, name);
+        content = json{{"token", token}};
+      }
+    }
+    else
+      content = json{{"error", "refresh failed"}};
 
     res.set_content(content, APPLICATION_JSON);
   });

@@ -42,13 +42,17 @@ bool ValidateToken(std::string token, std::string name, std::string priv, std::s
       log("Token has expired");
     else
     {
-      log("Token valid for {}", name.c_str());
+      log("Token valid for ", name.c_str());
       return true;
     }
   }
-  catch(const std::exception& e)
+  catch (const std::system_error& e)
   {
-    log("Exception thrown while validating token: {}", e.what());
+    log("Exception caught while validating token: ", e.what());
+  }
+  catch (const std::exception& e)
+  {
+    log("Exception thrown while validating token: ", e.what());
   }
   return false;
 }
@@ -135,9 +139,9 @@ void Server::Init()
   {
     using json = nlohmann::json;
     std::string content;
-    if (req.has_param("refresh") || req.has_param("name"))
+    if (req.has_param("token") || req.has_param("name"))
     {
-      const auto refresh = req.get_param_value("refresh");
+      const auto refresh = req.get_param_value("token");
       const auto name    = req.get_param_value("name");
       if (ValidateToken(refresh, name, m_pr_key, m_pb_key))
       {

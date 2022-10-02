@@ -135,9 +135,8 @@ void Server::Init()
     res.set_content((Register(name, pass, key)) ? "Created" : "Failed", HTML_MARKUP);
   });
 
-  m_server.Get("/refresh", [this, &GetJSON](const httplib::Request& req, httplib::Response& res)
+  m_server.Get("/refresh", [this](const httplib::Request& req, httplib::Response& res)
   {
-    using json = nlohmann::json;
     std::string content;
     if (req.has_param("token") || req.has_param("name"))
     {
@@ -147,11 +146,11 @@ void Server::Init()
       {
         const auto token = CreateToken(req.get_param_value("name"), m_pr_key, m_pb_key);
         SaveTokens(token, refresh, name);
-        content = json{{"token", token}};
+        content = JSON("token", token);
       }
     }
     else
-      content = json{{"error", "refresh failed"}};
+      content = JSON("error", "refresh failed");
 
     res.set_content(content, APPLICATION_JSON);
   });

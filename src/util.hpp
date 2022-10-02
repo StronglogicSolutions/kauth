@@ -5,7 +5,7 @@
 #include <iostream>
 
 std::string ReadFile (const std::string& path);
-void        SaveToken(const std::string& token, const std::string& name);
+void        SaveTokens(const std::string& token, const std::string& refresh, const std::string& name);
 
 template<typename... Args>
 static void log(Args... args)

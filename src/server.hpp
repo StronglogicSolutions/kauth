@@ -16,6 +16,7 @@ std::string Login(const std::string& username, const std::string& password);
 void        Init();
 bool        UserExists(const std::string& name);
 void        AddUser(const std::string& name, const std::string& password);
+std::string FetchPassword(const std::string& name);
 
 httplib::Server m_server;
 Database::KDB   m_db;

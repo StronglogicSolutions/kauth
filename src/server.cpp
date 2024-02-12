@@ -121,6 +121,7 @@ void Server::Init()
     if (req.has_param("name"))     name = req.get_param_value("name");
     if (req.has_param("password")) pass = req.get_param_value("password");
 
+    log("/login called with", name.c_str(), " and ", pass.c_str());
     res.set_content(Login(name, pass), APPLICATION_JSON);
   });
 
@@ -142,6 +143,8 @@ void Server::Init()
     {
       const auto refresh = req.get_param_value("token");
       const auto name    = req.get_param_value("name");
+      log("/refresh called with name:", name.c_str(), " and refresh: ", refresh.c_str());
+
       if (ValidateToken(refresh, name, m_pr_key, m_pb_key))
       {
         const auto token = CreateToken(req.get_param_value("name"), m_pr_key, m_pb_key);
@@ -179,8 +182,13 @@ std::string Server::Login(const std::string& username, const std::string& passwo
 
   try
   {
-    if (username.size() && password.size() &&
-        BCrypt::validatePassword(password, BCrypt::generateHash(password)))
+    if (username.empty())
+      throw std::invalid_argument(username + " not found");
+
+    if (password.empty())
+      throw std::invalid_argument("No password provided");
+
+    if (BCrypt::validatePassword(password, FetchPassword(username)))
     {
       log("Login validated");
       static const bool is_refresh = true;
@@ -194,7 +202,10 @@ std::string Server::Login(const std::string& username, const std::string& passwo
         log("Returning tokens");
         return GetJSON(token, refresh);
       }
+      log("Token not valid");
     }
+    else
+      log("Password invalid");
   }
   catch(const std::exception& e)
   {
@@ -212,4 +223,13 @@ bool Server::UserExists(const std::string& name)
 void Server::AddUser(const std::string& name, const std::string& password)
 {
   m_db.insert("users", {"name", "password"}, {name, password});
+}
+
+std::string Server::FetchPassword(const std::string& name)
+{
+  for (const auto value : m_db.select("users", {"password"}, CreateFilter("name", name)))
+    if (value.first == "password")
+      return value.second;
+
+  return "";
 }

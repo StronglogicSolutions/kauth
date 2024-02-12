@@ -121,7 +121,6 @@ void Server::Init()
     if (req.has_param("name"))     name = req.get_param_value("name");
     if (req.has_param("password")) pass = req.get_param_value("password");
 
-    log("/login called with", name.c_str(), " and ", pass.c_str());
     res.set_content(Login(name, pass), APPLICATION_JSON);
   });
 
@@ -143,7 +142,6 @@ void Server::Init()
     {
       const auto refresh = req.get_param_value("token");
       const auto name    = req.get_param_value("name");
-      log("/refresh called with name:", name.c_str(), " and refresh: ", refresh.c_str());
 
       if (ValidateToken(refresh, name, m_pr_key, m_pb_key))
       {
@@ -178,7 +176,6 @@ std::string Server::Login(const std::string& username, const std::string& passwo
     return(t.size() && r.size()) ?
       nlohmann::json{{"token", t}, {"refresh", r}}.dump() :
       JSON("error", "Login failed"); };
-  log("Login attempt by ", username.c_str(), " with pass ", password.c_str());
 
   try
   {
@@ -187,6 +184,9 @@ std::string Server::Login(const std::string& username, const std::string& passwo
 
     if (password.empty())
       throw std::invalid_argument("No password provided");
+
+    if (!UserExists(username))
+      throw std::invalid_argument("Invalid username");
 
     if (BCrypt::validatePassword(password, FetchPassword(username)))
     {
